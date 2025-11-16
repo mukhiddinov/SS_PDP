@@ -7,16 +7,17 @@ WORKDIR /app
 # Copy requirements
 COPY requirements.txt /app/requirements.txt
 
-# Install system deps (optional)
+# Install system deps + Python deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    && pip install --no-cache-dir -r /app/requirements.txt 
+    build-essential gcc libpq-dev \
+    && pip install --upgrade pip \
+    && pip install --no-cache-dir -r /app/requirements.txt
+
 # Copy project
 COPY . /app
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Run both bot + API inside one process manager
-# We will use "sh -c" to run two services at once
+# Run combined bot + API
 CMD ["python", "main_combined.py"]
-
