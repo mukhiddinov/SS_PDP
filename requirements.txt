@@ -10,4 +10,4 @@ python-dotenv
 google-auth-oauthlib
 sqlalchemy
 psycopg2-binary
-apscheduler==3.10.6
+apscheduler==3.10.4
