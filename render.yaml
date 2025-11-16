@@ -2,9 +2,9 @@ services:
   - type: web
     name: nmadur-api
     env: docker
-    dockerfilePath: Dockerfile.api
     plan: free
     region: frankfurt
+    dockerfilePath: Dockerfile.api
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -14,9 +14,13 @@ services:
   - type: web
     name: nmadur-bot
     env: docker
-    dockerfilePath: Dockerfile.bot
     plan: free
     region: frankfurt
+    dockerfilePath: Dockerfile.bot
     envVars:
       - key: BOT_TOKEN
         sync: false
+
+databases:
+  - name: student_schedule_db
+    plan: free

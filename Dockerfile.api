@@ -1,18 +1,21 @@
-# Base image
+# Dockerfile.api
 FROM python:3.11-slim
 
 WORKDIR /app
 
+# Copy requirements
 COPY requirements.txt /app/requirements.txt
 
+# Install system dependencies and Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc libpq-dev \
     && pip install --upgrade pip \
     && pip install --no-cache-dir -r /app/requirements.txt
 
-COPY nmadur_api /app
+# Copy API code
+COPY nmadur_api /app/nmadur_api
 
 ENV PYTHONUNBUFFERED=1
 
-# Run API
-CMD ["uvicorn", "nmadur_api:nmadur_api", "--host", "0.0.0.0", "--port", "8000"]
+# Start API
+CMD ["uvicorn", "nmadur_api.nmadur_api:app", "--host", "0.0.0.0", "--port", "8000"]
