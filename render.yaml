@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: schedule-service
+    env: python
+    plan: free
+    region: frankfurt
+    buildCommand: ""
+    startCommand: "python nmadur_bot/main.py & uvicorn nmadur_api.nmadur_api:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: schedule-db
+          property: connectionString
+
+databases:
+  - name: schedule-db
+    plan: free
