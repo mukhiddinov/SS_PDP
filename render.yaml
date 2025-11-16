@@ -1,10 +1,10 @@
 services:
   - type: web
     name: nmadur-api
-    env: docker
+    env: docker           # docker environment
     plan: free
     region: frankfurt
-    dockerfilePath: Dockerfile.api
+    dockerfilePath: Dockerfile.api   # <- bu qator muhim
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -16,11 +16,7 @@ services:
     env: docker
     plan: free
     region: frankfurt
-    dockerfilePath: Dockerfile.bot
+    dockerfilePath: Dockerfile.bot   # <- bot uchun Dockerfile
     envVars:
       - key: BOT_TOKEN
         sync: false
-
-databases:
-  - name: student_schedule_db
-    plan: free
