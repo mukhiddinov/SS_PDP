@@ -35,6 +35,11 @@ class ScheduleRequest(BaseModel):
     class_name: str
     day_name: str
 
+# --- Dummy health endpoint (Render uchun port test) ---
+@app.get("/healthz")
+async def health_check():
+    return {"status": "ok"}
+
 # --- Funksiyalar ---
 def find_day_column_indexes(first_row):
     day_positions = {}
@@ -122,3 +127,8 @@ def fetch_schedule(req: ScheduleRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("nmadur_api:app", host="0.0.0.0", port=port)
