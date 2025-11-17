@@ -91,7 +91,7 @@ def get_class_schedule(class_name, day_name, rows, day_positions):
     return result
 
 # --- API endpoint ---
-@app.post("/schedule/")
+@app.get("/schedule/")
 def fetch_schedule(req: ScheduleRequest):
     try:
         # --- Credentials JSON ni environment variable dan olish ---
