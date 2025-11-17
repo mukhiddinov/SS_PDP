@@ -1,20 +1,21 @@
-# schedule_updater.py (GET ga moslashtirilgan)
+# schedule_updater_async.py
 
 import os
-import requests
-from datetime import datetime, timedelta
-from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
+from datetime import datetime, timedelta
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import aiohttp  # requests o‘rniga async HTTP client
 
 from models import SessionLocal, User, Group, Spreadsheet, ScheduleCache
 
 try:
     from main import application
 except ImportError:
-    application = None  # Agar main.py ishga tushmagan bo'lsa
+    application = None
 
-API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/schedule/")  # GET so'rovga mos
-scheduler = BackgroundScheduler()
+API_URL = "https://ss-pdp-api.onrender.com/schedule/"  # GET so'rov
+
+scheduler = AsyncIOScheduler()
 
 LESSON_TIMES = [
     {"para": 1, "start": "09:00"},
@@ -27,9 +28,64 @@ LESSON_TIMES = [
 ]
 REMINDER_OFFSET_MINUTES = 4
 
+
+async def fetch_and_update_cache(class_name: str):
+    async with asyncio.Lock():  # DB va cache update blokirovka
+        db_session = SessionLocal()
+        try:
+            group = db_session.query(Group).filter(Group.class_name == class_name).first()
+            if not group:
+                print(f"Guruh topilmadi: {class_name}")
+                return
+
+            spreadsheet_info = db_session.query(Spreadsheet).filter(Spreadsheet.degree == group.degree).first()
+            if not spreadsheet_info:
+                print(f"Spreadsheet ma'lumoti topilmadi: {group.degree}-kurs")
+                return
+
+            try:
+                url_parts = spreadsheet_info.url.split('/')
+                spreadsheet_id = url_parts[5]
+                sheet_name = spreadsheet_info.sheet_name or ""
+            except IndexError:
+                print(f"Noto'g'ri URL formati: {spreadsheet_info.url}")
+                return
+
+            day_name = datetime.now().strftime('%A')
+            payload = {
+                "spreadsheet_id": str(spreadsheet_id),
+                "sheet_name": str(sheet_name),
+                "class_name": str(class_name),
+                "day_name": str(day_name)
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(API_URL, params=payload) as resp:
+                    if resp.status != 200:
+                        print(f"API so'rovi xato: {resp.status}")
+                        return
+                    schedule_data = await resp.json()
+
+            cache_entry = db_session.query(ScheduleCache).filter(ScheduleCache.class_name == class_name).first()
+            if cache_entry:
+                cache_entry.data = schedule_data
+            else:
+                cache_entry = ScheduleCache(class_name=class_name, data=schedule_data)
+                db_session.add(cache_entry)
+
+            db_session.commit()
+            print(f"Kesh yangilandi: {class_name} uchun {day_name}")
+
+        except Exception as e:
+            print(f"Kesh yangilashda xato: {e}")
+            db_session.rollback()
+        finally:
+            db_session.close()
+
+
 async def send_lesson_reminder(class_name: str, para_number: int):
     if not application:
-        print("Bot Application obyekti topilmadi. Eslatma yuborilmadi.")
+        print("Bot Application topilmadi.")
         return
 
     db_session = SessionLocal()
@@ -38,9 +94,8 @@ async def send_lesson_reminder(class_name: str, para_number: int):
         if not cache_entry or not cache_entry.data:
             return
 
-        schedule_data = cache_entry.data
-        lesson = next((item for item in schedule_data if item.get('para') == str(para_number)), None)
-        if not lesson or lesson.get('subject') in ['Bo\'sh', 'Bo\'sh kun']: 
+        lesson = next((l for l in cache_entry.data if str(l.get('para')) == str(para_number)), None)
+        if not lesson or lesson.get('subject') in ['Bo\'sh', 'Bo\'sh kun']:
             return
 
         reminder_text = (
@@ -55,11 +110,7 @@ async def send_lesson_reminder(class_name: str, para_number: int):
         for chat_id_tuple in user_chat_ids:
             chat_id = chat_id_tuple[0]
             try:
-                await application.bot.send_message(
-                    chat_id=chat_id,
-                    text=reminder_text,
-                    parse_mode='Markdown'
-                )
+                await application.bot.send_message(chat_id=chat_id, text=reminder_text, parse_mode='Markdown')
             except Exception as e:
                 print(f"Eslatma yuborishda xato ({chat_id}): {e}")
 
@@ -67,104 +118,51 @@ async def send_lesson_reminder(class_name: str, para_number: int):
         db_session.close()
 
 
-def start_daily_notifications():
-    print("🔔 Kunlik eslatmalar jadvalga qo'shilmoqda...")
+async def refresh_all_cache():
     db_session = SessionLocal()
     try:
         all_class_names = [r[0] for r in db_session.query(Group.class_name).distinct().all()]
-        today = datetime.now().strftime('%Y-%m-%d')
-
-        for job in scheduler.get_jobs():
-            if job.id.startswith('reminder_'):
-                scheduler.remove_job(job.id)
-
-        for lesson in LESSON_TIMES:
-            start_time = datetime.strptime(lesson['start'], "%H:%M")
-            reminder_time = start_time - timedelta(minutes=REMINDER_OFFSET_MINUTES)
-            reminder_hour = reminder_time.hour
-            reminder_minute = reminder_time.minute
-
-            for class_name in all_class_names:
-                job_id = f"reminder_{class_name}_{lesson['para']}_{today}"
-                scheduler.add_job(
-                    send_lesson_reminder,
-                    'cron',
-                    hour=reminder_hour,
-                    minute=reminder_minute,
-                    args=[class_name, lesson['para']],
-                    id=job_id,
-                    misfire_grace_time=60,
-                    max_instances=1
-                )
-                print(f" -> {class_name} ({lesson['para']}-para) uchun eslatma soat {reminder_hour:02d}:{reminder_minute:02d} ga qo'shildi.")
-
     finally:
         db_session.close()
 
-
-def fetch_and_update_cache(session, class_name):
-    group = session.query(Group).filter(Group.class_name == class_name).first()
-    if not group:
-        print(f"Guruh topilmadi: {class_name}")
-        return
-
-    spreadsheet_info = session.query(Spreadsheet).filter(Spreadsheet.degree == group.degree).first()
-    if not spreadsheet_info:
-        print(f"Spreadsheet ma'lumoti topilmadi: {group.degree}-kurs")
-        return
-
-    try:
-        url_parts = spreadsheet_info.url.split('/')
-        spreadsheet_id = url_parts[5]
-        sheet_name = spreadsheet_info.sheet_name
-        if not sheet_name:
-            print(f"⚠️ {group.degree}-kurs uchun DB da sheet_name bo'sh.")
-            return
-    except IndexError:
-        print(f"Noto'g'ri URL formati (ID ajratishda xato): {spreadsheet_info.url}")
-        return
-
-    day_name = datetime.now().strftime('%A')
-    payload = {
-        "spreadsheet_id": spreadsheet_id,
-        "sheet_name": sheet_name,
-        "class_name": class_name,
-        "day_name": day_name
-    }
-
-    try:
-        # POST -> GET va params orqali
-        response = requests.get(API_URL, params=payload)
-        response.raise_for_status()
-        schedule_data = response.json()
-
-        cache_entry = session.query(ScheduleCache).filter(ScheduleCache.class_name == class_name).first()
-        if cache_entry:
-            cache_entry.data = schedule_data
-        else:
-            cache_entry = ScheduleCache(class_name=class_name, data=schedule_data)
-            session.add(cache_entry)
-
-        session.commit()
-        print(f"Kesh muvaffaqiyatli yangilandi: {class_name} uchun {day_name}")
-
-    except requests.exceptions.RequestException as e:
-        print(f"API so'rovida xato (Kesh yangilanmadi): {e}")
-        session.rollback()
+    # Async har bir guruh uchun
+    await asyncio.gather(*(fetch_and_update_cache(c) for c in all_class_names))
 
 
-def refresh_all_cache():
+def schedule_daily_notifications():
     db_session = SessionLocal()
     try:
         all_class_names = [r[0] for r in db_session.query(Group.class_name).distinct().all()]
+    finally:
+        db_session.close()
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    for lesson in LESSON_TIMES:
+        start_time = datetime.strptime(lesson['start'], "%H:%M")
+        reminder_time = start_time - timedelta(minutes=REMINDER_OFFSET_MINUTES)
         for class_name in all_class_names:
-            fetch_and_update_cache(db_session, class_name)
-    finally:
-        db_session.close()
+            job_id = f"reminder_{class_name}_{lesson['para']}_{today}"
+            scheduler.add_job(
+                send_lesson_reminder,
+                'cron',
+                hour=reminder_time.hour,
+                minute=reminder_time.minute,
+                args=[class_name, lesson['para']],
+                id=job_id,
+                misfire_grace_time=60,
+                max_instances=1
+            )
+            print(f"{class_name} {lesson['para']}-para eslatma soat {reminder_time.hour:02d}:{reminder_time.minute:02d} qo‘shildi.")
 
 
 def start_scheduler():
+    # AsyncIOScheduler ishga tushirish
     scheduler.add_job(refresh_all_cache, 'cron', hour=7, minute=0)
-    scheduler.add_job(start_daily_notifications, 'cron', hour=7, minute=1)
+    scheduler.add_job(schedule_daily_notifications, 'cron', hour=7, minute=1)
     scheduler.start()
-    print("✅ Scheduler (Keshni yangilash mexanizmi) ishga tushirildi.")
+    print("✅ Async scheduler ishga tushirildi.")
+
+
+if __name__ == "__main__":
+    start_scheduler()
+    asyncio.get_event_loop().run_forever()
