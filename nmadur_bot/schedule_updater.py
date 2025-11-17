@@ -1,24 +1,19 @@
-# schedule_updater.py
+# schedule_updater.py (GET ga moslashtirilgan)
 
-import os  # <- qo'shildi
+import os
 import requests
-import json
 from datetime import datetime, timedelta
-from urllib.parse import urlparse, parse_qs
 from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 
-# --- Importlar ---
-from models import SessionLocal, User, Group, Spreadsheet, ScheduleCache 
+from models import SessionLocal, User, Group, Spreadsheet, ScheduleCache
 
-# Bot instansiyasini main.py dan import qilish (telegram xabari yuborish uchun)
 try:
-    from main import application 
+    from main import application
 except ImportError:
     application = None  # Agar main.py ishga tushmagan bo'lsa
 
-# --- Global Sozlamalar ---
-API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/schedule/")  # <- env var bilan
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000/schedule/")  # GET so'rovga mos
 scheduler = BackgroundScheduler()
 
 LESSON_TIMES = [
@@ -30,9 +25,7 @@ LESSON_TIMES = [
     {"para": 6, "start": "16:30"},
     {"para": 7, "start": "18:00"},
 ]
-REMINDER_OFFSET_MINUTES = 4  # Eslatmani 10 daqiqa oldin yuborish
-
-# --- Yangi Asinxron Eslatma Funksiyasi ---
+REMINDER_OFFSET_MINUTES = 4
 
 async def send_lesson_reminder(class_name: str, para_number: int):
     if not application:
@@ -63,8 +56,8 @@ async def send_lesson_reminder(class_name: str, para_number: int):
             chat_id = chat_id_tuple[0]
             try:
                 await application.bot.send_message(
-                    chat_id=chat_id, 
-                    text=reminder_text, 
+                    chat_id=chat_id,
+                    text=reminder_text,
                     parse_mode='Markdown'
                 )
             except Exception as e:
@@ -73,8 +66,6 @@ async def send_lesson_reminder(class_name: str, para_number: int):
     finally:
         db_session.close()
 
-
-# --- Kunlik Eslatma Ishlarini Jadvalga Qo'shish ---
 
 def start_daily_notifications():
     print("🔔 Kunlik eslatmalar jadvalga qo'shilmoqda...")
@@ -96,9 +87,9 @@ def start_daily_notifications():
             for class_name in all_class_names:
                 job_id = f"reminder_{class_name}_{lesson['para']}_{today}"
                 scheduler.add_job(
-                    send_lesson_reminder, 
-                    'cron', 
-                    hour=reminder_hour, 
+                    send_lesson_reminder,
+                    'cron',
+                    hour=reminder_hour,
                     minute=reminder_minute,
                     args=[class_name, lesson['para']],
                     id=job_id,
@@ -107,13 +98,9 @@ def start_daily_notifications():
                 )
                 print(f" -> {class_name} ({lesson['para']}-para) uchun eslatma soat {reminder_hour:02d}:{reminder_minute:02d} ga qo'shildi.")
 
-    except Exception as e:
-        print(f"Kunlik eslatmalarni qo'shishda xato: {e}")
     finally:
         db_session.close()
 
-
-# --- Asosiy Kesh Yangilash Funksiyasi ---
 
 def fetch_and_update_cache(session, class_name):
     group = session.query(Group).filter(Group.class_name == class_name).first()
@@ -140,14 +127,14 @@ def fetch_and_update_cache(session, class_name):
     day_name = datetime.now().strftime('%A')
     payload = {
         "spreadsheet_id": spreadsheet_id,
-        "sheet_name": sheet_name, 
+        "sheet_name": sheet_name,
         "class_name": class_name,
         "day_name": day_name
     }
 
-    headers = {"Content-Type": "application/json"}
     try:
-        response = requests.post(API_URL, json=payload, headers=headers)
+        # POST -> GET va params orqali
+        response = requests.get(API_URL, params=payload)
         response.raise_for_status()
         schedule_data = response.json()
 
@@ -157,7 +144,7 @@ def fetch_and_update_cache(session, class_name):
         else:
             cache_entry = ScheduleCache(class_name=class_name, data=schedule_data)
             session.add(cache_entry)
-            
+
         session.commit()
         print(f"Kesh muvaffaqiyatli yangilandi: {class_name} uchun {day_name}")
 
@@ -166,10 +153,8 @@ def fetch_and_update_cache(session, class_name):
         session.rollback()
 
 
-# --- Barcha Keshni Yangilash ---
-
 def refresh_all_cache():
-    db_session = SessionLocal() 
+    db_session = SessionLocal()
     try:
         all_class_names = [r[0] for r in db_session.query(Group.class_name).distinct().all()]
         for class_name in all_class_names:
@@ -177,8 +162,6 @@ def refresh_all_cache():
     finally:
         db_session.close()
 
-
-# --- Scheduler Ishga Tushirish ---
 
 def start_scheduler():
     scheduler.add_job(refresh_all_cache, 'cron', hour=7, minute=0)
