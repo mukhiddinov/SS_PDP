@@ -1,25 +1,27 @@
 import os
-import threading
+import asyncio
 from fastapi import FastAPI
 import uvicorn
-from main import main as start_bot
+from main import application, refresh_all_cache  # main.py dan
 
 app = FastAPI()
 
 @app.get("/")
-def health():
+def read_root():
     return {"status": "ok"}
 
-def run_bot_thread():
-    # Bu yerda sening main() funksiyang botni to'liq ishga tushiradi
-    start_bot()
+async def start_bot():
+    await application.initialize()
+    await application.start()
+    await refresh_all_cache()  # optional: keshni dastlabki yangilash
+    await application.run_polling()
+    print("Bot polling started.")
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(start_bot())
 
 if __name__ == "__main__":
-    # Botni alohida threadda ishlatamiz
-    t = threading.Thread(target=run_bot_thread, daemon=True)
-    t.start()
-
-    # Uvicorn server port ochib Renderga xizmat qiladi
     uvicorn.run(
         app,
         host="0.0.0.0",
