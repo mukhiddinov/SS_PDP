@@ -16,4 +16,4 @@ COPY . /app
 ENV PYTHONUNBUFFERED=1
 ENV PORT=10000  
 
-CMD ["python", "nmadur_bot/start_server.py"]
+CMD ["python", "start_server.py"]
