@@ -3,35 +3,26 @@ import logging
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import asyncio
 
 # Ichki modullar
 from models import SessionLocal, Group, User, ScheduleCache
-from schedule_updater import start_scheduler, refresh_all_cache, scheduler
+from schedule_updater import start_scheduler, refresh_all_cache
 
 # --- Bot token ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable topilmadi!")
 
+# --- Logging ---
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 
 # --- Global Application obyektini yaratish ---
-try:
-    application = Application.builder().token(BOT_TOKEN).build()
-    print("Application obyektini global yaratish muvaffaqiyatli.")
-except Exception as e:
-    logging.error(f"Application obyektini yaratishda xato: {e}")
-    application = None
-
-# Scheduler uchun global application berish
-from schedule_updater import application as scheduler_app
-scheduler_app = application
+application = Application.builder().token(BOT_TOKEN).build()
 
 # --- Bot Funksiyalari ---
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [InlineKeyboardButton("1-kurs", callback_data='degree_1')],
@@ -60,7 +51,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             if not groups:
                 await query.edit_message_text(
-                    f"⚠️ **{degree}-kurs** uchun ma'lumotlar bazasida guruh topilmadi. Ma'lumotlarni tekshiring."
+                    f"⚠️ **{degree}-kurs** uchun ma'lumotlar bazasida guruh topilmadi."
                 )
                 return
             
@@ -99,7 +90,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 def get_schedule_from_cache(session, class_name):
     cache_entry = session.query(ScheduleCache).filter(ScheduleCache.class_name == class_name).first()
     if not cache_entry or not cache_entry.data:
-        return "⚠️ Jadval keshda topilmadi. Kesh yangilanishini kuting (har kuni 7:00 da yangilanadi) yoki administratorga murojaat qiling."
+        return "⚠️ Jadval keshda topilmadi. Kesh yangilanishini kuting yoki administratorga murojaat qiling."
     
     schedule_data = cache_entry.data
     day_name = datetime.now().strftime('%A')
@@ -118,17 +109,10 @@ def get_schedule_from_cache(session, class_name):
     
     return "\n".join(output)
 
-# --- Asosiy Funksiya ---
-def main() -> None:
-    if application is None:
-        logging.error("Application obyekti yaratilmadi. Bot ishga tushmaydi.")
-        return
+# --- Handlerlarni qo'shish ---
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(button_handler))
 
-    # Handlerlarni qo'shish
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-
-    start_scheduler()
-
-if __name__ == '__main__':
-    main()
+# --- Scheduler ishga tushadi ---
+def start_bot_services():
+    start_scheduler()  # schedule_updater ichidagi scheduler ishga tushadi
