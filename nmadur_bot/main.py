@@ -1,19 +1,22 @@
 import os
 import logging
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, error
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import asyncio
 
 # Ichki modullar
 from models import SessionLocal, Group, User, ScheduleCache
-from schedule_updater import start_scheduler, refresh_all_cache
+from schedule_updater import start_scheduler, refresh_all_cache, scheduler
 
-# --- Environment variable orqali token olish ---
+# --- Bot token ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable topilmadi!")
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
 
 # --- Global Application obyektini yaratish ---
 try:
@@ -23,10 +26,13 @@ except Exception as e:
     logging.error(f"Application obyektini yaratishda xato: {e}")
     application = None
 
+# Scheduler uchun global application berish
+from schedule_updater import application as scheduler_app
+scheduler_app = application
+
 # --- Bot Funksiyalari ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Kurs (degree) tanlash tugmalarini yuboradi."""
     keyboard = [
         [InlineKeyboardButton("1-kurs", callback_data='degree_1')],
         [InlineKeyboardButton("2-kurs", callback_data='degree_2')],
@@ -41,7 +47,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback so'rovlarini qayta ishlaydi (Kurs/Guruh tanlash)."""
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -92,9 +97,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 # --- Keshdan jadvalni olish funksiyasi ---
 def get_schedule_from_cache(session, class_name):
-    """Keshdan jadval ma'lumotlarini formatlab oladi."""
     cache_entry = session.query(ScheduleCache).filter(ScheduleCache.class_name == class_name).first()
-    
     if not cache_entry or not cache_entry.data:
         return "⚠️ Jadval keshda topilmadi. Kesh yangilanishini kuting (har kuni 7:00 da yangilanadi) yoki administratorga murojaat qiling."
     
@@ -121,20 +124,22 @@ def main() -> None:
         logging.error("Application obyekti yaratilmadi. Bot ishga tushmaydi.")
         return
 
-    # Scheduler ishga tushirish
-    start_scheduler() 
-    
+    # Scheduler ishga tushirish uchun asyncio loop o‘rnatish
+    loop = asyncio.get_event_loop()
+    scheduler._eventloop = loop
+    start_scheduler()
+
     # Keshni dastlabki yangilash
-    print("⏳ Dastur ishga tushirilishi munosabati bilan kesh bir marta yangilanmoqda...")
-    refresh_all_cache() 
-    print("✅ Keshning dastlabki yangilanishi tugadi. Bot ishga tushirilmoqda...")
-    
+    print("⏳ Dastlabki kesh yangilanmoqda...")
+    loop.run_until_complete(refresh_all_cache())
+    print("✅ Kesh yangilandi, bot ishga tushmoqda...")
+
     # Handlerlarni qo'shish
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
 
     # Botni ishga tushirish
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
