@@ -1,3 +1,4 @@
+# Hozirgi Dockerfile boshida o'zgarishlar kerak emas
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -13,8 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . /app
 
 ENV PYTHONUNBUFFERED=1
-# Render Web service uchun portni olish shart
-ENV PORT=10000
+ENV PORT=10000  
 
-# Botni ishga tushiramiz
-CMD ["python", "main.py"]
+CMD ["python", "nmadur_bot/start_server.py"]
