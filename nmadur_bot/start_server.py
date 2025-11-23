@@ -2,20 +2,31 @@ import os
 import asyncio
 from fastapi import FastAPI
 import uvicorn
-from main import application, refresh_all_cache  # main.py dan
+from main import application, refresh_all_cache, start_bot_services
 
 app = FastAPI()
 
+# Health check endpoint
 @app.get("/")
-def read_root():
+async def read_root():
     return {"status": "ok"}
 
+# Botni background-da ishga tushirish
 async def start_bot():
+    print("⏳ Bot ishga tushmoqda...")
     await application.initialize()
     await application.start()
-    await refresh_all_cache()  # optional: keshni dastlabki yangilash
+    
+    # Keshni dastlabki yangilash (optional)
+    await refresh_all_cache()
+    print("✅ Kesh yangilandi.")
+
+    # Scheduler ishga tushadi
+    start_bot_services()
+    
+    # Polling ishga tushadi
     await application.run_polling()
-    print("Bot polling started.")
+    print("🤖 Bot ishga tushdi va polling ishlayapti.")
 
 @app.on_event("startup")
 async def startup_event():
