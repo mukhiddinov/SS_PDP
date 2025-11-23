@@ -14,7 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . /app
 
 ENV PYTHONUNBUFFERED=1
-ENV PORT=10000  # Render tomonidan o'rnatiladigan $PORT ga ham mos
+ENV PORT=10000  
 
-# CMD hozirgi main.py orniga start_server.py
 CMD ["python", "nmadur_bot/start_server.py"]
