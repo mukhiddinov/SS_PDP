@@ -1,6 +1,13 @@
-python-telegram-bot
+python-telegram-bot==20.7
 apscheduler==3.10.4
+
 sqlalchemy
 psycopg2-binary
+
 requests
 aiohttp
+
+fastapi
+uvicorn
+
+python-dotenv
