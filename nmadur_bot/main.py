@@ -124,22 +124,11 @@ def main() -> None:
         logging.error("Application obyekti yaratilmadi. Bot ishga tushmaydi.")
         return
 
-    # Scheduler ishga tushirish uchun asyncio loop o‘rnatish
-    loop = asyncio.get_event_loop()
-    scheduler._eventloop = loop
-    start_scheduler()
-
-    # Keshni dastlabki yangilash
-    print("⏳ Dastlabki kesh yangilanmoqda...")
-    loop.run_until_complete(refresh_all_cache())
-    print("✅ Kesh yangilandi, bot ishga tushmoqda...")
-
     # Handlerlarni qo'shish
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    # Botni ishga tushirish
-    application.run_polling()
+    start_scheduler()
 
 if __name__ == '__main__':
     main()
