@@ -1,8 +1,7 @@
 services:
-  - type: web
+  - type: worker
     name: nmadur-bot
     env: docker
     plan: free
     region: frankfurt
     dockerfilePath: Dockerfile
-    startCommand: "python start_server.py"
