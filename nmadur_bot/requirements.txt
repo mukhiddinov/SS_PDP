@@ -7,7 +7,4 @@ psycopg2-binary
 requests
 aiohttp
 
-fastapi
-uvicorn
-
 python-dotenv
