@@ -1,12 +1,13 @@
 import os
 import logging
+import asyncio
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # Ichki modullar
 from models import SessionLocal, Group, User, ScheduleCache
-from schedule_updater import start_scheduler, refresh_all_cache
+from schedule_updater import start_scheduler, refresh_all_cache, set_application
 
 # --- Bot token ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -116,3 +117,40 @@ application.add_handler(CallbackQueryHandler(button_handler))
 # --- Scheduler ishga tushadi ---
 def start_bot_services():
     start_scheduler()  # schedule_updater ichidagi scheduler ishga tushadi
+
+# --- Main entrypoint ---
+async def main():
+    """Bot-ni polling rejimida ishga tushirish"""
+    logging.info("⏳ Bot ishga tushmoqda...")
+    
+    # Application-ni schedule_updater-ga o'rnatish
+    set_application(application)
+    
+    # Application-ni initialize qilish
+    await application.initialize()
+    await application.start()
+    
+    # Scheduler xizmatlarini ishga tushirish
+    start_bot_services()
+    logging.info("✅ Scheduler xizmatlari ishga tushirildi")
+    
+    # Keshni dastlabki yangilash (xavfsiz)
+    try:
+        await refresh_all_cache()
+        logging.info("✅ Kesh muvaffaqiyatli yangilandi")
+    except Exception as e:
+        logging.error(f"Keshni yangilashda xato: {e}")
+        logging.info("Bot keshsiz davom etadi, keyingi rejalashtirilgan yangilanishni kutadi")
+    
+    # Polling-ni ishga tushirish
+    logging.info("🤖 Bot polling-ni boshlayapti...")
+    await application.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=True
+    )
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.info("Bot to'xtatildi (KeyboardInterrupt)")
