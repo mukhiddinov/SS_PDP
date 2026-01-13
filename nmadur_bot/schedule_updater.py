@@ -1,9 +1,8 @@
-# schedule_updater.py
-
 import asyncio
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import aiohttp
+import os
 
 from models import get_db, User, Group, Spreadsheet, ScheduleCache
 
@@ -49,9 +48,13 @@ async def fetch_and_update_cache(class_name: str):
                 "day_name": day_name
             }
 
+            # Read API base URL from environment, default to http://api:8000
+            api_base_url = os.getenv("API_BASE_URL", "http://api:8000")
+            api_endpoint = f"{api_base_url}/schedule/"
+
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.request("GET", "https://ss-pdp-api.onrender.com/schedule/", json=payload) as resp:
+                    async with session.post(api_endpoint, json=payload) as resp:
                         if resp.status != 200:
                             print(f"API so'rovi xato ({resp.status})")
                             return
