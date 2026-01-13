@@ -9,6 +9,11 @@ from models import get_db, User, Group, Spreadsheet, ScheduleCache
 application = None  # bu main.py dan beriladi
 scheduler = AsyncIOScheduler()
 
+def set_application(app):
+    """Set the telegram application instance for sending notifications"""
+    global application
+    application = app
+
 LESSON_TIMES = [
     {"para": 1, "start": "09:00"},
     {"para": 2, "start": "10:30"},
