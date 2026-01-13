@@ -14,6 +14,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . /app
 
 ENV PYTHONUNBUFFERED=1
-ENV PORT=10000  
 
-CMD ["python", "start_server.py"]
+CMD ["python", "main.py"]

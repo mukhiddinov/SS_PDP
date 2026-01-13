@@ -79,7 +79,7 @@ The application consists of three services:
 
 - **db**: PostgreSQL database with persistent volume
 - **api**: FastAPI application that fetches schedule data from Google Sheets (port 8000)
-- **bot**: Telegram bot that interacts with users and calls the API
+- **bot**: Telegram bot (polling mode) that interacts with users and calls the API
 
 ### Stopping the Application
 
