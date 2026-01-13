@@ -1,13 +1,13 @@
 import os
 import logging
+import asyncio
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # Ichki modullar
 from models import SessionLocal, Group, User, ScheduleCache
-from schedule_updater import start_scheduler, refresh_all_cache
-import schedule_updater
+from schedule_updater import start_scheduler, refresh_all_cache, set_application
 
 # --- Bot token ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -124,7 +124,7 @@ async def main():
     logging.info("⏳ Bot ishga tushmoqda...")
     
     # Application-ni schedule_updater-ga o'rnatish
-    schedule_updater.application = application
+    set_application(application)
     
     # Application-ni initialize qilish
     await application.initialize()
@@ -150,7 +150,6 @@ async def main():
     )
 
 if __name__ == "__main__":
-    import asyncio
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
