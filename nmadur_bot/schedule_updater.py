@@ -31,6 +31,17 @@ LESSON_TIMES = [
 REMINDER_OFFSET_MINUTES = 4
 lock = asyncio.Lock()
 
+def has_real_lessons(schedule_data):
+    """Check if schedule has real lessons (not just Bo'sh or empty)"""
+    if not schedule_data:
+        return False
+    
+    for item in schedule_data:
+        subject = item.get('subject', '')
+        if subject and subject not in ['Bo\'sh', 'Bo\'sh kun']:
+            return True
+    return False
+
 async def fetch_and_update_cache(class_name: str):
     async with lock:
         with get_db() as db:
@@ -139,15 +150,8 @@ async def send_daily_schedule():
                 
                 schedule_data = cache_entry.data
                 
-                # Check if schedule is empty or only has empty slots
-                has_real_lessons = False
-                for item in schedule_data:
-                    subject = item.get('subject', '')
-                    if subject and subject not in ['Bo\'sh', 'Bo\'sh kun']:
-                        has_real_lessons = True
-                        break
-                
-                if not has_real_lessons:
+                # Check if schedule has real lessons
+                if not has_real_lessons(schedule_data):
                     # No real lessons - send exact message
                     await application.bot.send_message(
                         chat_id=user.chat_id,
@@ -185,6 +189,8 @@ def schedule_daily_notifications():
     # Use Asia/Tashkent timezone for date string
     today = datetime.now(TASHKENT_TZ).strftime('%Y-%m-%d')
     for lesson in LESSON_TIMES:
+        # Parse lesson time and calculate reminder time
+        # Note: times are already in Asia/Tashkent as scheduler uses TASHKENT_TZ
         start_time = datetime.strptime(lesson['start'], "%H:%M")
         reminder_time = start_time - timedelta(minutes=REMINDER_OFFSET_MINUTES)
         for class_name in class_names:
