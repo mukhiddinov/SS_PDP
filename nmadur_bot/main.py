@@ -11,7 +11,7 @@ TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
 
 # Ichki modullar
 from models import SessionLocal, Group, User, ScheduleCache
-from schedule_updater import start_scheduler, refresh_all_cache, set_application
+from schedule_updater import start_scheduler, refresh_all_cache, set_application, has_real_lessons
 
 # --- Bot token ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -101,19 +101,8 @@ def get_schedule_from_cache(session, class_name):
     # Use Asia/Tashkent timezone for day name
     day_name = datetime.now(TASHKENT_TZ).strftime('%A')
     
-    # Check if data is None or empty list
-    if not schedule_data or len(schedule_data) == 0:
-        return "Bugun sizda dars mavjud emas"
-    
-    # Check if all entries are empty slots
-    has_real_lessons = False
-    for item in schedule_data:
-        subject = item.get('subject', '')
-        if subject and subject not in ['Bo\'sh', 'Bo\'sh kun']:
-            has_real_lessons = True
-            break
-    
-    if not has_real_lessons:
+    # Check if data is None or empty, or only has empty slots
+    if not has_real_lessons(schedule_data):
         return "Bugun sizda dars mavjud emas"
         
     output = [f"📅 **Bugungi jadval ({day_name})** uchun **{class_name}**:\n"]
