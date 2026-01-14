@@ -2,12 +2,16 @@ import os
 import logging
 import asyncio
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
+# Uzbekistan timezone
+TASHKENT_TZ = ZoneInfo("Asia/Tashkent")
+
 # Ichki modullar
 from models import SessionLocal, Group, User, ScheduleCache
-from schedule_updater import start_scheduler, refresh_all_cache, set_application
+from schedule_updater import start_scheduler, refresh_all_cache, set_application, has_real_lessons
 
 # --- Bot token ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -90,20 +94,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # --- Keshdan jadvalni olish funksiyasi ---
 def get_schedule_from_cache(session, class_name):
     cache_entry = session.query(ScheduleCache).filter(ScheduleCache.class_name == class_name).first()
-    if not cache_entry or not cache_entry.data:
+    if not cache_entry:
         return "⚠️ Jadval keshda topilmadi. Kesh yangilanishini kuting yoki administratorga murojaat qiling."
     
     schedule_data = cache_entry.data
-    day_name = datetime.now().strftime('%A')
+    # Use Asia/Tashkent timezone for day name
+    day_name = datetime.now(TASHKENT_TZ).strftime('%A')
     
-    if not schedule_data or len(schedule_data) == 0:
-        return f"Bugun, **{day_name}** kuni **{class_name}** guruhida dars yo'q."
+    # Check if data is None or empty, or only has empty slots
+    if not has_real_lessons(schedule_data):
+        return "Bugun sizda dars mavjud emas"
         
     output = [f"📅 **Bugungi jadval ({day_name})** uchun **{class_name}**:\n"]
     for item in schedule_data:
+        subject = item.get('subject', 'N/A')
+        # Skip empty slots in display
+        if subject in ['Bo\'sh', 'Bo\'sh kun']:
+            continue
         output.append(
             f"🔸 **{item.get('para', 'N/A')}**-para: **{item.get('time', 'N/A')}**\n"
-            f"📚 {item.get('subject', 'N/A')} ({item.get('room', 'N/A')})\n"
+            f"📚 {subject} ({item.get('room', 'N/A')})\n"
             f"👤 O'qituvchi: {item.get('teacher', 'N/A')}\n"
             "---"
         )
