@@ -4,3 +4,4 @@ env/
 venv/
 service_account.json
 *.env
+google-creds.json
