@@ -126,6 +126,8 @@ async def send_daily_schedule():
     """Send daily schedule to all users at 06:01 Asia/Tashkent"""
     if not application:
         return
+
+    await refresh_all_cache()
     
     day_name = datetime.now(TASHKENT_TZ).strftime('%A')
     print(f"Kunlik jadval yuborilmoqda: {day_name}")
@@ -184,6 +186,8 @@ async def send_daily_schedule():
     print(f"Kunlik jadval yuborildi: {day_name}")
 
 def schedule_daily_notifications():
+    scheduler.remove_all_jobs(jobstore='default')
+
     with get_db() as db:
         class_names = [r[0] for r in db.query(Group.class_name).distinct().all()]
     # Use Asia/Tashkent timezone for date string
@@ -208,35 +212,41 @@ def schedule_daily_notifications():
             )
 
 def start_scheduler():
-    # Har kuni ertalab 06:00 Asia/Tashkent da keshni yangilash
+    # 06:00 — Keshni yangilash
     scheduler.add_job(
-        lambda: asyncio.create_task(refresh_all_cache()), 
-        'cron', 
-        hour=6, 
+        refresh_all_cache,
+        trigger='cron',
+        hour=6,
         minute=0,
         id='cache_refresh',
-        replace_existing=True
+        replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=300
     )
-    
-    # Har kuni 06:01 Asia/Tashkent da kunlik jadval yuborish
+
+    # 06:01 — Kunlik jadval yuborish
     scheduler.add_job(
-        lambda: asyncio.create_task(send_daily_schedule()),
-        'cron',
+        send_daily_schedule,
+        trigger='cron',
         hour=6,
         minute=1,
         id='daily_schedule',
-        replace_existing=True
+        replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=300
     )
-    
-    # Har kuni 06:02 Asia/Tashkent da bugungi eslatmalarni rejalashtirish
+
+    # 06:02 — Reminder’larni rejalashtirish
     scheduler.add_job(
-        schedule_daily_notifications, 
-        'cron', 
-        hour=6, 
+        schedule_daily_notifications,
+        trigger='cron',
+        hour=6,
         minute=2,
         id='schedule_reminders',
-        replace_existing=True
+        replace_existing=True,
+        coalesce=True,
+        misfire_grace_time=300
     )
-    
+
     scheduler.start()
-    print("✅ Scheduler ishga tushirildi (Asia/Tashkent)")
+    print("✅ Scheduler ishonchli tarzda ishga tushirildi (Asia/Tashkent)")
